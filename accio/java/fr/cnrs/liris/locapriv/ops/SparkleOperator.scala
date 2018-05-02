@@ -49,7 +49,7 @@ trait SparkleOperator {
     val clazz = classTag[T].runtimeClass
     decoders.find(decoder => clazz.isAssignableFrom(decoder.elementClassTag.runtimeClass)) match {
       case None => throw new RuntimeException(s"No decoder available for ${clazz.getName}")
-      case Some(decoder) => env.read(new CsvSource(dataset.uri, decoder.asInstanceOf[Decoder[T]]))
+      case Some(decoder) => env.newDataset(new CsvSource(dataset.uri, decoder.asInstanceOf[Decoder[T]]))
     }
   }
 

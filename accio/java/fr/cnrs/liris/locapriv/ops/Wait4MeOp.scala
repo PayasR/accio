@@ -197,7 +197,7 @@ case class Wait4MeOp(
       val parts = line.trim.split("\t")
       val idx = parts(0).toInt
       if (events.nonEmpty && currIdx.get != idx) {
-        env.parallelize(keysReverseIndex(currIdx.get) -> Seq(Trace(keysReverseIndex(currIdx.get), events.toList))).write(sink)
+        env.newDataset(keysReverseIndex(currIdx.get) -> Seq(Trace(keysReverseIndex(currIdx.get), events.toList))).write(sink)
         events.clear()
         currIdx = Some(idx)
       } else if (currIdx.isEmpty) {
@@ -206,7 +206,7 @@ case class Wait4MeOp(
       events += Event(keysReverseIndex(idx).split("-").head, Point(parts(2).toDouble, parts(3).toDouble), new Instant(parts(1).toLong))
     }
     if (events.nonEmpty) {
-      env.parallelize(keysReverseIndex(currIdx.get) -> Seq(Trace(keysReverseIndex(currIdx.get), events.toList))).write(sink)
+      env.newDataset(keysReverseIndex(currIdx.get) -> Seq(Trace(keysReverseIndex(currIdx.get), events.toList))).write(sink)
     }
     RemoteFile(outputUri)
   }

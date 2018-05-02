@@ -23,11 +23,17 @@ import com.google.common.base.MoreObjects
 import scala.reflect.ClassTag
 
 private[sparkle] class ZipDataFrame[T: ClassTag, U: ClassTag](first: DataFrame[T], other: DataFrame[U])
-  extends DataFrame[(T, U)](first.env) {
+  extends DataFrame[(T, U)] {
 
-  override def keys: Seq[String] = first.keys.intersect(other.keys)
+  override def toString: String =
+    MoreObjects.toStringHelper(this).addValue(first).addValue(other).toString
 
-  override def load(key: String): Iterator[(T, U)] = first.load(key).zip(other.load(key))
+  override private[sparkle] def env: SparkleEnv = first.env
 
-  override def toString: String = MoreObjects.toStringHelper(this).addValue(first).addValue(other).toString
+  override private[sparkle] def numPartitions = {
+    require(first.numPartitions == other.numPartitions, "Cannot zip dataframes with different size")
+    first.numPartitions
+  }
+
+  override private[sparkle] def compute(partition: Int) = first.compute(partition).zip(other.compute(partition))
 }

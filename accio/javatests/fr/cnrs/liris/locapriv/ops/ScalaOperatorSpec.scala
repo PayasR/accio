@@ -56,17 +56,17 @@ private[ops] trait ScalaOperatorSpec extends BeforeAndAfterEach {
 
   protected final def writeTraces(data: Trace*): RemoteFile = {
     val uri = Files.createTempDirectory(getClass.getSimpleName + "-").toAbsolutePath.toString
-    env.parallelize(data: _*)(_.id).write(new CsvSink(uri, traceCodec))
+    env.newDataset(data: _*)(_.id).write(new CsvSink(uri, traceCodec))
     RemoteFile(uri)
   }
 
   protected final def writePois(data: PoiSet*): RemoteFile = {
     val uri = Files.createTempDirectory(getClass.getSimpleName + "-").toAbsolutePath.toString
-    env.parallelize(data: _*)(_.id).write(new CsvSink(uri, poiSetCodec))
+    env.newDataset(data: _*)(_.id).write(new CsvSink(uri, poiSetCodec))
     RemoteFile(uri)
   }
 
   protected final def readTraces(ds: RemoteFile): Seq[Trace] = {
-    env.read(new CsvSource(ds.uri, traceCodec)).toArray.toSeq
+    env.newDataset(new CsvSource(ds.uri, traceCodec)).toArray.toSeq
   }
 }

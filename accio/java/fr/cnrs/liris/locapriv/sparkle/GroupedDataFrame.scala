@@ -18,18 +18,16 @@
 
 package fr.cnrs.liris.locapriv.sparkle
 
-import com.google.common.base.MoreObjects
-
 import scala.reflect.ClassTag
 
-private[sparkle] class FlatMapDataFrame[T, U: ClassTag](inner: DataFrame[T], fn: T => Iterable[U])
-  extends DataFrame[U] {
+private[sparkle] class GroupedDataFrame[K: ClassTag, V: ClassTag](inner: DataFrame[V], fn: V => K)
+  extends DataFrame[(K, V)] {
 
-  override def toString: String = MoreObjects.toStringHelper(this).addValue(inner).toString
+  private[this] val index: Array[Array[Int]] = ???
 
-  override private[sparkle] def env: SparkleEnv = inner.env
+  override private[sparkle] def numPartitions = index.length
 
-  override private[sparkle] def numPartitions = inner.numPartitions
+  override private[sparkle] def compute(partition: Int) = new PartialIterator[(K, V)](index(partition), ???)
 
-  override private[sparkle] def compute(partition: Int) = inner.compute(partition).flatMap(fn)
+  override private[sparkle] def env = inner.env
 }

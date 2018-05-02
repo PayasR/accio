@@ -43,75 +43,53 @@ class DataFrameSpec extends UnitSpec with BeforeAndAfterEach {
     super.afterEach()
   }
 
-  // Basic/meta operations.
-  it should "return its elements' type" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
-    data.elementClassTag shouldBe classTag[Int]
-  }
-
-  it should "return its keys" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
-    data.keys shouldBe Seq("foo", "bar")
-  }
-
-  it should "load a single key" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
-    data.load("foo").toSeq shouldBe Seq(1, 2, 3)
-    data.load("bar").toSeq shouldBe Seq(4, 5)
-  }
-
   // Transformation operations.
   it should "map elements" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     data.map(_ * 2).toArray shouldBe Array(2, 4, 6, 8, 10)
   }
 
   it should "flatMap elements" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     data.flatMap(i => Set(i, i * 2)).toArray shouldBe Array(1, 2, 2, 4, 3, 6, 4, 8, 5, 10)
   }
 
   it should "filter elements" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     data.filter(i => (i % 2) == 0).toArray shouldBe Array(2, 4)
   }
 
   it should "zip with another dataset with same keys and same size" in {
-    val data1 = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
-    val data2 = env.parallelize("foo" -> Seq(2, 4, 6), "bar" -> Seq(8, 10))
+    val data1 = env.newDataset(1, 2, 3, 4, 5)
+    val data2 = env.newDataset("foo" -> Seq(2, 4, 6), "bar" -> Seq(8, 10))
     data1.zip(data2).toArray shouldBe Array((1, 2), (2, 4), (3, 6), (4, 8), (5, 10))
   }
 
   it should "zip with another dataset with different keys" in {
-    val data1 = env.parallelize("foo" -> Seq(1, 2, 3), "foobar" -> Seq(4))
-    val data2 = env.parallelize("bar" -> Seq(8, 10), "foobar" -> Seq(8))
+    val data1 = env.newDataset("foo" -> Seq(1, 2, 3), "foobar" -> Seq(4))
+    val data2 = env.newDataset("bar" -> Seq(8, 10), "foobar" -> Seq(8))
     data1.zip(data2).toArray shouldBe Array((4, 8))
   }
 
   it should "zip with another dataset with different size" in {
-    val data1 = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(3))
-    val data2 = env.parallelize("foo" -> Seq(2, 4), "bar" -> Seq(6, 23))
+    val data1 = env.newDataset("foo" -> Seq(1, 2, 3), "bar" -> Seq(3))
+    val data2 = env.newDataset("foo" -> Seq(2, 4), "bar" -> Seq(6, 23))
     data1.zip(data2).toArray shouldBe Array((1, 2), (2, 4), (3, 6))
   }
 
   // Terminal operations.
   it should "count elements" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     data.count() shouldBe 5
   }
 
-  it should "return first element" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
-    data.first() shouldBe 1
-  }
-
   it should "return its elements in order" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     data.toArray shouldBe Array(1, 2, 3, 4, 5)
   }
 
   it should "apply an operation on each element" in {
-    val data = env.parallelize("foo" -> Seq(1, 2, 3), "bar" -> Seq(4, 5))
+    val data = env.newDataset(1, 2, 3, 4, 5)
     val res = mutable.Set.empty[Int]
     data.foreach { i =>
       res synchronized {

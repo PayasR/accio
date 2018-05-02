@@ -22,7 +22,6 @@ import java.util.concurrent.{Executors, TimeUnit}
 
 import com.twitter.util.logging.Logging
 
-import scala.collection.immutable.ListMap
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.reflect.ClassTag
@@ -34,39 +33,33 @@ import scala.util.{Failure, Success}
  * @param parallelism Parallelism level (i.e., number of cores to use).
  */
 class SparkleEnv(parallelism: Int) extends Logging {
-  require(parallelism > 0, s"Parallelism level must be > 0 (got $parallelism)")
+  require(parallelism > 0, s"Parallelism must be strictly positive: $parallelism")
   logger.info(s"Initializing Sparkle to utilize $parallelism cores")
-  private[this] val executor = if (1 == parallelism) Executors.newSingleThreadExecutor else Executors.newWorkStealingPool(parallelism)
+
+  private[this] val executor = {
+    if (1 == parallelism) Executors.newSingleThreadExecutor else Executors.newWorkStealingPool(parallelism)
+  }
   private[this] implicit val ec = ExecutionContext.fromExecutor(executor)
 
   /**
-   * Create a new dataframe from an in-memory collection.
+   * Create a new dataset from an in-memory collection.
    *
-   * @param data List of keys and items.
+   * @param elements List of keys and items.
    * @tparam T Elements' type.
    */
-  def parallelize[T: ClassTag](data: (String, Iterable[T])*): DataFrame[T] = {
-    new MemoryDataFrame(ListMap(data.map { case (key, value) => key -> value.toSeq }: _*), this)
+  def newDataset[T: ClassTag](elements: T*): DataFrame[T] = {
+    new MemoryDataFrame(elements.toArray, this, parallelism)
   }
 
   /**
-   * Create a new dataframe from an in-memory collection.
+   * Create a new dataset from a data source.
    *
-   * @param values  List of items.
-   * @param indexer Indexing function, extracting the key from an item.
+   * @param frame Data frame.
    * @tparam T Elements' type.
    */
-  def parallelize[T: ClassTag](values: T*)(indexer: T => String): DataFrame[T] = {
-    new MemoryDataFrame(values.groupBy(indexer), this)
+  def newDataset[T: ClassTag](frame: Frame): DataFrame[T] = {
+    new SourceDataFrame(frame, this, parallelism)
   }
-
-  /**
-   * Create a new dataframe from a data source.
-   *
-   * @param source Data source.
-   * @tparam T Elements' type.
-   */
-  def read[T: ClassTag](source: DataSource[T]): DataFrame[T] = new SourceDataFrame(source, this)
 
   /**
    * Clean and stop this environment. It will not be usable after. This method is blocking.
@@ -83,19 +76,18 @@ class SparkleEnv(parallelism: Int) extends Logging {
   /**
    * Submit a job to this environment.
    *
-   * @param frame
-   * @param keys
+   * @param dataFrame
    * @param processor
    * @tparam T
    * @tparam U
    */
-  private[sparkle] def submit[T, U: ClassTag](frame: DataFrame[T], keys: Seq[String], processor: (String, Iterator[T]) => U): Array[U] = {
-    if (keys.isEmpty) {
+  private[sparkle] def submit[T, U: ClassTag](dataFrame: DataFrame[T], processor: (Int, Iterator[T]) => U): Array[U] = {
+    if (dataFrame.numPartitions == 0) {
       Array.empty
-    } else if (keys.size == 1) {
-      Array(processor(keys.head, frame.load(keys.head)))
+    } else if (dataFrame.numPartitions == 1) {
+      Array(processor(0, dataFrame.compute(0)))
     } else {
-      val futures = keys.map(key => Future(processor(key, frame.load(key))))
+      val futures = Seq.tabulate(dataFrame.numPartitions)(key => Future(processor(key, dataFrame.compute(key))))
       val future = Future.sequence(futures).map(_.toArray)
       Await.ready[Array[U]](future, Duration.Inf)
       future.value.get match {

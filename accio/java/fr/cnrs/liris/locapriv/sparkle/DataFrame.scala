@@ -19,18 +19,19 @@
 package fr.cnrs.liris.locapriv.sparkle
 
 import com.twitter.util.logging.Logging
-import fr.cnrs.liris.util.Identified
 import fr.cnrs.liris.util.random._
 
 import scala.reflect._
 import scala.util.Random
 
-abstract class DataFrame[T: ClassTag](val env: SparkleEnv) extends Logging {
-  val elementClassTag: ClassTag[T] = implicitly[ClassTag[T]]
+abstract class DataFrame[T: ClassTag] extends Logging {
+  private[sparkle] def numPartitions: Int
 
-  def keys: Seq[String]
+  private[sparkle] def compute(partition: Int): Iterator[T]
 
-  def load(key: String): Iterator[T]
+  private[sparkle] def env: SparkleEnv
+
+  def groupBy[K](fn: T => K): DataFrame[(K, T)] = ???
 
   /**
    * Return a sampled subset of this RDD.
@@ -58,11 +59,11 @@ abstract class DataFrame[T: ClassTag](val env: SparkleEnv) extends Logging {
 
   def zip[U: ClassTag](other: DataFrame[U]): DataFrame[(T, U)] = new ZipDataFrame(this, other)
 
-  def count(): Long = env.submit[T, Long](this, keys, (_, it) => it.size).sum
+  def count(): Long = env.submit[T, Long](this, (_, it) => it.size).sum
 
-  def reduce(fn: (T, T) => T): T = env.submit[T, T](this, keys, (_, it) => it.reduce(fn)).reduce(fn)
+  def reduce(fn: (T, T) => T): T = env.submit[T, T](this, (_, it) => it.reduce(fn)).reduce(fn)
 
-  def toArray: Array[T] = env.submit[T, Array[T]](this, keys, (_, it) => it.toArray).flatten
+  def toArray: Array[T] = env.submit[T, Array[T]](this, (_, it) => it.toArray).flatten
 
   /**
    * Return a fixed-size sampled subset of this data frame in an array
@@ -108,31 +109,5 @@ abstract class DataFrame[T: ClassTag](val env: SparkleEnv) extends Logging {
     }
   }
 
-  def first(): T = {
-    val keysIt = keys.iterator
-    var res: Option[T] = None
-    while (res.isEmpty && keysIt.hasNext) {
-      res = env
-        .submit[T, Option[T]](this, Seq(keysIt.next()), (_, it) => if (it.hasNext) Some(it.next()) else None)
-        .headOption
-        .flatten
-    }
-    res.get
-  }
-
-  def foreach(fn: T => Unit): Unit = env.submit[T, Unit](this, keys, (_, it) => it.foreach(fn))
-
-  def write(sink: DataSink[T]): Unit = {
-    val identifiable = classOf[Identified].isAssignableFrom(elementClassTag.runtimeClass)
-    env.submit[T, Unit](this, keys, (key, it) => {
-      if (identifiable) {
-        //TODO: Get a rid of that once for all!
-        it.toSeq
-          .groupBy(_.asInstanceOf[Identified].id)
-          .foreach { case (actualKey, elements) => sink.write(actualKey, elements) }
-      } else {
-        sink.write(key, it.toSeq)
-      }
-    })
-  }
+  def foreach(fn: T => Unit): Unit = env.submit[T, Unit](this, (_, it) => it.foreach(fn))
 }

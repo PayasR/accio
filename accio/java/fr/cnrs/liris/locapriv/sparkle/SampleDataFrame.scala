@@ -25,20 +25,22 @@ import scala.reflect.ClassTag
 import scala.util.Random
 
 private[sparkle] class SampleDataFrame[T: ClassTag](inner: DataFrame[T], sampler: RandomSampler[T, T], seed: Long)
-  extends DataFrame[T](inner.env) {
+  extends DataFrame[T] {
 
-  private[this] val seeds = {
+  private[this] lazy val seeds = {
     val random = new Random(seed)
-    inner.keys.map(key => key -> random.nextLong).toMap
-  }
-
-  override def keys: Seq[String] = inner.keys
-
-  override def load(key: String): Iterator[T] = {
-    val aSampler = sampler.clone
-    aSampler.setSeed(seeds(key))
-    aSampler.sample(inner.load(key))
+    Array.fill(numPartitions)(random.nextLong)
   }
 
   override def toString: String = MoreObjects.toStringHelper(this).addValue(inner).toString
+
+  override private[sparkle] def env: SparkleEnv = inner.env
+
+  override private[sparkle] def numPartitions = inner.numPartitions
+
+  override private[sparkle] def compute(partition: Int) = {
+    val aSampler = sampler.clone
+    aSampler.setSeed(seeds(partition))
+    aSampler.sample(inner.compute(partition))
+  }
 }

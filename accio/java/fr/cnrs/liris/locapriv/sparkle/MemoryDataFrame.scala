@@ -18,19 +18,25 @@
 
 package fr.cnrs.liris.locapriv.sparkle
 
+import com.google.common.base.MoreObjects
+
 import scala.reflect.ClassTag
 
 /**
  * A data frame reading its data from the memory.
  *
- * @param data Data, indexed by key.
- * @param env  Sparkle environment.
+ * @param elements      Elements belonging to the data frame.
+ * @param env           Sparkle environment.
+ * @param numPartitions Number of partitions.
  * @tparam T Elements' type.
  */
-private[sparkle] class MemoryDataFrame[T: ClassTag](data: Map[String, Seq[T]], env: SparkleEnv)
-  extends DataFrame[T](env) {
+private[sparkle] class MemoryDataFrame[T: ClassTag](
+  elements: Array[T],
+  private[sparkle] val env: SparkleEnv,
+  private[sparkle] val numPartitions: Int)
+  extends DataFrame[T] {
 
-  override def keys: Seq[String] = data.keySet.toSeq
+  override def toString: String = MoreObjects.toStringHelper(this).toString
 
-  override def load(key: String): Iterator[T] = if (data.contains(key)) data(key).iterator else Iterator.empty
+  override private[sparkle] def compute(partition: Int) = ???
 }

@@ -18,18 +18,14 @@
 
 package fr.cnrs.liris.locapriv.sparkle
 
-import com.google.common.base.MoreObjects
+private[sparkle] class RangeIterator[T](from: Int, until: Int, getter: Int => T) extends Iterator[T] {
+  private[this] var n = 0
 
-import scala.reflect.ClassTag
+  override def hasNext: Boolean = from + n < until
 
-private[sparkle] class FlatMapDataFrame[T, U: ClassTag](inner: DataFrame[T], fn: T => Iterable[U])
-  extends DataFrame[U] {
-
-  override def toString: String = MoreObjects.toStringHelper(this).addValue(inner).toString
-
-  override private[sparkle] def env: SparkleEnv = inner.env
-
-  override private[sparkle] def numPartitions = inner.numPartitions
-
-  override private[sparkle] def compute(partition: Int) = inner.compute(partition).flatMap(fn)
+  override def next(): T = {
+    val res = getter(from + n)
+    n += 1
+    res
+  }
 }

@@ -22,20 +22,13 @@ import com.google.common.base.MoreObjects
 
 import scala.reflect.ClassTag
 
-/**
- * A dataframe loading its data on the fly using a data source.
- *
- * @param source Data source.
- * @tparam T Elements' type.
- */
-private[sparkle] class SourceDataFrame[T: ClassTag](source: DataSource[T], env: SparkleEnv) extends DataFrame[T](env) {
-  override lazy val keys: Seq[String] = source.keys
+private[sparkle] class SourceDataFrame[T: ClassTag](
+  frame: Frame,
+  private[sparkle] val env: SparkleEnv,
+  private[sparkle] val numPartitions: Int)
+  extends DataFrame[T] {
 
-  override def load(key: String): Iterator[T] = source.read(key).iterator
+  override def toString: String = MoreObjects.toStringHelper(this).toString
 
-  override def toString: String =
-    MoreObjects.toStringHelper(this)
-      .addValue(elementClassTag)
-      .add("source", source)
-      .toString
+  override private[sparkle] def compute(partition: Int) = ???
 }

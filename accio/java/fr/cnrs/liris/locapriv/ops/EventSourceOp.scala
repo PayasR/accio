@@ -40,7 +40,7 @@ case class EventSourceOp(
       case "geolife" => GeolifeSource(FileUtils.expand(url))
       case _ => throw new IllegalArgumentException(s"Unknown dataset kind: $kind")
     }
-    val output = if (kind != "csv") write(env.read(source), ctx) else RemoteFile(url)
+    val output = if (kind != "csv") write(env.newDataset(source), ctx) else RemoteFile(url)
     EventSourceOut(output)
   }
 }

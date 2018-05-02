@@ -23,11 +23,13 @@ import com.google.common.base.MoreObjects
 import scala.reflect.ClassTag
 
 private[sparkle] class FilterDataFrame[T: ClassTag](inner: DataFrame[T], fn: T => Boolean)
-  extends DataFrame[T](inner.env) {
-
-  override def keys: Seq[String] = inner.keys
-
-  override def load(key: String): Iterator[T] = inner.load(key).filter(fn)
+  extends DataFrame[T] {
 
   override def toString: String = MoreObjects.toStringHelper(this).addValue(inner).toString
+
+  override private[sparkle] def env: SparkleEnv = inner.env
+
+  override private[sparkle] def compute(partition: Int) = inner.compute(partition).filter(fn)
+
+  override private[sparkle] def numPartitions = inner.numPartitions
 }
