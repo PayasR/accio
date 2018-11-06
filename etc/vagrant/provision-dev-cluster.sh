@@ -38,11 +38,13 @@ function install_packages() {
 function prepare_extras() {
   # Include build script in default PATH.
   ln -sf /home/vagrant/accio/etc/vagrant/acciobuild.sh /usr/local/bin/acciobuild
+  ln -sf /home/vagrant/accio/etc/vagrant/lumosbuild.sh /usr/local/bin/lumosbuild
   chown vagrant: /usr/local/bin/acciobuild && chmod +x /usr/local/bin/acciobuild
+  chown vagrant: /usr/local/bin/lumosbuild && chmod +x /usr/local/bin/lumosbuild
 
-  # Copy the default clusters definition file. We do not link it, in case the user want to add
-  # other clusters in it.
-  mkdir -p /etc/accio && cp /home/vagrant/accio/etc/vagrant/clusters.json /etc/accio
+  # Copy default clusters.json files.
+  mkdir -p /etc/accio && cp /home/vagrant/accio/etc/vagrant/accio/clusters.json /etc/accio
+  mkdir -p /etc/lumos && cp /home/vagrant/accio/etc/vagrant/lumos/clusters.json /etc/lumos
 }
 
 function prepare_sources {
@@ -56,4 +58,4 @@ function prepare_sources {
 install_packages
 prepare_sources
 prepare_extras
-su vagrant -c "acciobuild all"
+su vagrant -c "acciobuild all; lumosbuild all"

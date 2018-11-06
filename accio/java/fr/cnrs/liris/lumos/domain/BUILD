@@ -20,12 +20,12 @@ scala_library(
   deps = [
     "//accio/java/fr/cnrs/liris/util",
     "//3rdparty/jvm/com/github/nscala_time",
-    "//3rdparty/jvm/com/twitter:util_core",
+    "//3rdparty/jvm/com/google/guava",
     "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
   ],
   exports = [
     "//3rdparty/jvm/com/github/nscala_time",
-    "//3rdparty/jvm/com/twitter:util_core",
+    "//3rdparty/jvm/com/google/guava",
   ],
   visibility = ["//visibility:public"],
 )

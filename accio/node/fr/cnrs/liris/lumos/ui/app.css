@@ -20,22 +20,17 @@
 /**
  * Layout.
  */
-
 html, body {
   height: 100%;
 }
 
 .container {
-  width: 1200px;
+  width: 1140px;
   margin: 0 auto;
 }
 
 .content {
   margin-top: 20px;
-}
-
-body {
-  padding-top: 70px;
 }
 
 footer {
@@ -47,6 +42,67 @@ footer {
 
 footer a {
   margin-left: 10px;
+}
+
+h2 {
+  margin-bottom: 25px;
+}
+
+/**
+ * Job list.
+ */
+.progress-label {
+  font-size: 0.9em;
+  font-style: italic;
+  text-align: center;
+}
+
+.job-search {
+  margin-bottom: 10px;
+}
+
+.pager {
+  list-style-type: none;
+  display: flex;
+  margin-bottom: 10px;
+  justify-content: center;
+  align-items: stretch;
+}
+
+.pager li a {
+  display: block;
+  box-shadow: inset 0 0 0 1px rgba(16,22,26,.2), inset 0 -1px 0 rgba(16,22,26,.1);
+  background-color: #f5f8fa;
+  color: #182026;
+  padding: 7px 14px;
+}
+
+.pager li.active a {
+  background-color: #137cbd;
+  color: white;
+}
+
+.pager li.active a:hover {
+  background: rgb(16, 107, 163);
+}
+
+.pager li:first-child a {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.pager li:last-child a {
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+.pager li:not(:last-child) a {
+  margin-right: -1px;
+}
+
+.pager li a:hover {
+  text-decoration: none;
+  background-color: #ebf1f5;
 }
 
 /**

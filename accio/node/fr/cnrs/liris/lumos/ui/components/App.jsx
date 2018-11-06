@@ -18,11 +18,11 @@
 
 import React from 'react';
 import { Spinner } from '@blueprintjs/core';
-import { Route } from 'react-router-dom';
+import { Route, Redirect } from 'react-router-dom';
 import autobind from 'autobind-decorator';
 import Navbar from './Navbar';
 
-import JobList from './jobs/JobList';
+import JobsView from './jobs/JobsView';
 import JobViewContainer from './jobs/JobViewContainer';
 import LoginDialog from './LoginDialog';
 
@@ -30,7 +30,7 @@ export default class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      loading: true,
+      loading: false,
       authenticated: true,
     };
   }
@@ -57,8 +57,8 @@ export default class App extends React.Component {
       content = <LoginDialog onLogin={this.handleLogin}/>;
     } else {
       content = [
-        <Route exact path="/" component={JobList}/>,
-        <Route exact path="/jobs" component={JobList}/>,
+        <Route exact path="/" render={() => <Redirect to="/jobs"/>}/>,
+        <Route exact path="/jobs" component={JobsView}/>,
         <Route exact path="/jobs/view/:name" component={JobViewContainer}/>,
       ];
       content = React.Children.map(content, (route, idx) => React.cloneElement(route, { key: idx }));

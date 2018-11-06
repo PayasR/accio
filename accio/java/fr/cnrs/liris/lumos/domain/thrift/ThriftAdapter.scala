@@ -19,23 +19,29 @@
 package fr.cnrs.liris.lumos.domain.thrift
 
 import com.github.nscala_time.time.Imports._
-import com.twitter.util.StorageUnit
 import fr.cnrs.liris.lumos.domain
+import fr.cnrs.liris.lumos.domain.DataType
 import org.joda.time.Instant
 
 object ThriftAdapter {
-  def toDomain(obj: Value): domain.Value =
-    obj match {
-      case Value.Int(v) => domain.Value.Int(v)
-      case Value.Long(v) => domain.Value.Long(v)
-      case Value.Float(v) => domain.Value.Float(v.toFloat)
-      case Value.Dbl(v) => domain.Value.Double(v)
-      case Value.Boolean(v) => domain.Value.Bool(v)
-      case Value.Str(v) => domain.Value.String(v)
-      case Value.Dataset(v) => domain.Value.Dataset(toDomain(v))
-      case Value.File(v) => domain.Value.File(toDomain(v))
-      case Value.UnknownUnionField(_) => throw new IllegalArgumentException("Illegal value")
+  def toDomain(obj: Value): domain.Value = {
+    val value = obj.payload match {
+      case ValuePayload.Int(v) => domain.Value.Int(v)
+      case ValuePayload.Long(v) => domain.Value.Long(v)
+      case ValuePayload.Float(v) => domain.Value.Float(v.toFloat)
+      case ValuePayload.Dbl(v) => domain.Value.Double(v)
+      case ValuePayload.Boolean(v) => domain.Value.Bool(v)
+      case ValuePayload.Str(v) => domain.Value.String(v)
+      case ValuePayload.File(v) => domain.Value.File(toDomain(v))
+      case ValuePayload.UnknownUnionField(_) => throw new IllegalArgumentException("Illegal value")
     }
+    DataType.parse(obj.dataType) match {
+      case None => domain.Value.Unresolved(value, obj.dataType)
+      case Some(dataType) => value.cast(dataType).getOrElse {
+        throw new IllegalArgumentException(s"Invalid value for data type $dataType: $value")
+      }
+    }
+  }
 
   def toDomain(obj: Job): domain.Job = {
     domain.Job(
@@ -57,10 +63,12 @@ object ThriftAdapter {
     val payload = obj.payload match {
       case EventPayload.JobEnqueued(e) => domain.Event.JobEnqueued(toDomain(e.job))
       case EventPayload.JobExpanded(e) => domain.Event.JobExpanded(e.tasks.map(toDomain))
-      case EventPayload.JobStarted(e) => domain.Event.JobStarted(e.metadata.toMap, e.message)
+      case EventPayload.JobScheduled(e) => domain.Event.JobScheduled(e.metadata.toMap, e.message)
+      case EventPayload.JobStarted(e) => domain.Event.JobStarted(e.message)
       case EventPayload.JobCanceled(e) => domain.Event.JobCanceled(e.message)
       case EventPayload.JobCompleted(e) => domain.Event.JobCompleted(e.outputs.map(toDomain), e.message)
-      case EventPayload.TaskStarted(e) => domain.Event.TaskStarted(e.name, e.links.map(toDomain), e.metadata.toMap, e.message)
+      case EventPayload.TaskScheduled(e) => domain.Event.TaskScheduled(e.name, e.metadata.toMap, e.message)
+      case EventPayload.TaskStarted(e) => domain.Event.TaskStarted(e.name, e.message)
       case EventPayload.TaskCompleted(e) =>
         domain.Event.TaskCompleted(e.name, e.exitCode, e.metrics.map(toDomain), e.error.map(toDomain), e.message)
       case EventPayload.UnknownUnionField(_) => throw new IllegalArgumentException("Illegal value")
@@ -71,19 +79,24 @@ object ThriftAdapter {
   def toDomain(obj: ExecState): domain.ExecStatus.State =
     obj match {
       case ExecState.Pending => domain.ExecStatus.Pending
+      case ExecState.Scheduled => domain.ExecStatus.Scheduled
       case ExecState.Running => domain.ExecStatus.Running
       case ExecState.Successful => domain.ExecStatus.Successful
       case ExecState.Failed => domain.ExecStatus.Failed
       case ExecState.Canceled => domain.ExecStatus.Canceled
+      case ExecState.Lost => domain.ExecStatus.Lost
       case ExecState.EnumUnknownExecState(_) => throw new IllegalArgumentException("Illegal value")
     }
 
-  private def toDomain(obj: RemoteFile): domain.RemoteFile = {
+  def toDomain(obj: AttrValue): domain.AttrValue = {
+    domain.AttrValue(obj.name, toDomain(obj.value), obj.aspects.toSet)
+  }
+
+  def toDomain(obj: RemoteFile): domain.RemoteFile = {
     domain.RemoteFile(
       uri = obj.uri,
       contentType = obj.contentType,
       format = obj.format,
-      size = obj.sizeKb.map(StorageUnit.fromKilobytes),
       sha256 = obj.sha256)
   }
 
@@ -97,51 +110,36 @@ object ThriftAdapter {
       history = obj.history.map(toDomain),
       exitCode = obj.exitCode,
       error = obj.error.map(toDomain),
-      metrics = obj.metrics.map(toDomain),
-      links = obj.links.map(toDomain))
+      metrics = obj.metrics.map(toDomain))
   }
 
   private def toDomain(obj: ExecStatus): domain.ExecStatus = {
     domain.ExecStatus(toDomain(obj.state), new Instant(obj.time), obj.message)
   }
 
-  private def toDomain(obj: DataType): domain.DataType =
-    obj match {
-      case DataType.Int => domain.DataType.Int
-      case DataType.Long => domain.DataType.Long
-      case DataType.Float => domain.DataType.Float
-      case DataType.Double => domain.DataType.Double
-      case DataType.String => domain.DataType.String
-      case DataType.Boolean => domain.DataType.Bool
-      case DataType.Blob => domain.DataType.File
-      case DataType.Dataset => domain.DataType.Dataset
-      case DataType.EnumUnknownDataType(_) => throw new IllegalArgumentException("Illegal value")
-    }
-
-  private def toDomain(obj: ErrorDatum): domain.ErrorDatum = {
+  def toDomain(obj: ErrorDatum): domain.ErrorDatum = {
     domain.ErrorDatum(obj.mnemonic, obj.message, obj.stacktrace)
   }
 
-  private def toDomain(obj: Link): domain.Link = domain.Link(obj.title, obj.url)
-
-  private def toDomain(obj: AttrValue): domain.AttrValue = {
-    domain.AttrValue(obj.name, toDomain(obj.dataType), toDomain(obj.value), obj.aspects.toSet)
-  }
-
-  private def toDomain(obj: MetricValue): domain.MetricValue = {
+  def toDomain(obj: MetricValue): domain.MetricValue = {
     domain.MetricValue(obj.name, obj.value, obj.aspects.toSet)
   }
 
   def toThrift(obj: domain.Value): Value = {
     obj match {
-      case domain.Value.Int(v) => Value.Int(v)
-      case domain.Value.Long(v) => Value.Long(v)
-      case domain.Value.Float(v) => Value.Float(v)
-      case domain.Value.Double(v) => Value.Dbl(v)
-      case domain.Value.String(v) => Value.Str(v)
-      case domain.Value.Bool(v) => Value.Boolean(v)
-      case domain.Value.File(v) => Value.File(toThrift(v))
-      case domain.Value.Dataset(v) => Value.Dataset(toThrift(v))
+      case domain.Value.Int(v) => Value(obj.dataType.name, ValuePayload.Int(v))
+      case domain.Value.Long(v) => Value(obj.dataType.name, ValuePayload.Long(v))
+      case domain.Value.Float(v) => Value(obj.dataType.name, ValuePayload.Float(v))
+      case domain.Value.Double(v) => Value(obj.dataType.name, ValuePayload.Dbl(v))
+      case domain.Value.String(v) => Value(obj.dataType.name, ValuePayload.Str(v))
+      case domain.Value.Bool(v) => Value(obj.dataType.name, ValuePayload.Boolean(v))
+      case domain.Value.File(v) => Value(obj.dataType.name, ValuePayload.File(toThrift(v)))
+      case domain.Value.Dataset(v) => Value(obj.dataType.name, ValuePayload.File(toThrift(v)))
+      case domain.Value.Unresolved(value, originalDataType) => Value(originalDataType, toThrift(value).payload)
+      case domain.Value.UserDefined(v, dataType) =>
+        val encoded = dataType.encode(v.asInstanceOf[dataType.JvmType])
+        //val dataTypeName = s"${dataType.name}:${encoded.dataType.name}"
+        Value(dataType.name, toThrift(encoded).payload)
     }
   }
 
@@ -156,6 +154,7 @@ object ThriftAdapter {
       inputs = obj.inputs.map(toThrift),
       outputs = obj.outputs.map(toThrift),
       progress = obj.progress,
+      tasks = obj.tasks.map(toThrift),
       status = Some(toThrift(obj.status)),
       history = obj.history.map(toThrift))
   }
@@ -166,16 +165,23 @@ object ThriftAdapter {
         EventPayload.JobEnqueued(JobEnqueuedEvent(toThrift(e.job)))
       case e: domain.Event.JobExpanded =>
         EventPayload.JobExpanded(JobExpandedEvent(e.tasks.map(toThrift)))
-      case e: domain.Event.JobStarted => EventPayload.JobStarted(JobStartedEvent(e.metadata, e.message))
+      case e: domain.Event.JobScheduled =>
+        EventPayload.JobScheduled(JobScheduledEvent(e.metadata, e.message))
+      case e: domain.Event.JobStarted => EventPayload.JobStarted(JobStartedEvent(e.message))
       case e: domain.Event.JobCanceled => EventPayload.JobCanceled(JobCanceledEvent(e.message))
       case e: domain.Event.JobCompleted =>
         EventPayload.JobCompleted(JobCompletedEvent(e.outputs.map(toThrift), e.message))
-      case e: domain.Event.TaskStarted =>
-        EventPayload.TaskStarted(TaskStartedEvent(e.name, e.links.map(toThrift), e.metadata, e.message))
+      case e: domain.Event.TaskScheduled =>
+        EventPayload.TaskScheduled(TaskScheduledEvent(e.name, e.metadata, e.message))
+      case e: domain.Event.TaskStarted => EventPayload.TaskStarted(TaskStartedEvent(e.name, e.message))
       case e: domain.Event.TaskCompleted =>
         EventPayload.TaskCompleted(TaskCompletedEvent(e.name, e.exitCode, e.metrics.map(toThrift), e.error.map(toThrift), e.message))
     }
     Event(obj.parent, obj.sequence, obj.time.millis, payload)
+  }
+
+  def toThrift(obj: domain.AttrValue): AttrValue = {
+    AttrValue(obj.name, toThrift(obj.value), obj.aspects)
   }
 
   private def toThrift(obj: domain.Task): Task = {
@@ -186,57 +192,39 @@ object ThriftAdapter {
       metadata = obj.metadata,
       exitCode = obj.exitCode,
       metrics = obj.metrics.map(toThrift),
-      links = obj.links.map(toThrift),
       error = obj.error.map(toThrift),
       status = Some(toThrift(obj.status)),
       history = obj.history.map(toThrift))
   }
 
-  private def toThrift(obj: domain.DataType): DataType =
-    obj match {
-      case domain.DataType.Int => DataType.Int
-      case domain.DataType.Long => DataType.Long
-      case domain.DataType.Float => DataType.Float
-      case domain.DataType.Double => DataType.Double
-      case domain.DataType.String => DataType.String
-      case domain.DataType.Bool => DataType.Boolean
-      case domain.DataType.File => DataType.Blob
-      case domain.DataType.Dataset => DataType.Dataset
-    }
-
   private def toThrift(obj: domain.ExecStatus): ExecStatus = {
     ExecStatus(toThrift(obj.state), obj.time.millis, obj.message)
   }
 
-  private def toThrift(obj: domain.ExecStatus.State): ExecState =
+  def toThrift(obj: domain.ExecStatus.State): ExecState =
     obj match {
       case domain.ExecStatus.Pending => ExecState.Pending
+      case domain.ExecStatus.Scheduled => ExecState.Scheduled
       case domain.ExecStatus.Running => ExecState.Running
       case domain.ExecStatus.Successful => ExecState.Successful
       case domain.ExecStatus.Failed => ExecState.Failed
       case domain.ExecStatus.Canceled => ExecState.Canceled
+      case domain.ExecStatus.Lost => ExecState.Lost
     }
 
-  private def toThrift(obj: domain.Link): Link = Link(obj.title, obj.url)
-
-  private def toThrift(obj: domain.ErrorDatum): ErrorDatum = {
+  def toThrift(obj: domain.ErrorDatum): ErrorDatum = {
     ErrorDatum(obj.mnemonic, obj.message, obj.stacktrace)
   }
 
-  private def toThrift(obj: domain.AttrValue): AttrValue = {
-    AttrValue(obj.name, toThrift(obj.dataType), toThrift(obj.value), obj.aspects)
-  }
-
-  private def toThrift(obj: domain.MetricValue): MetricValue = {
+  def toThrift(obj: domain.MetricValue): MetricValue = {
     MetricValue(obj.name, obj.value, obj.aspects)
   }
 
-  private def toThrift(obj: domain.RemoteFile): RemoteFile = {
+  def toThrift(obj: domain.RemoteFile): RemoteFile = {
     RemoteFile(
       uri = obj.uri,
       contentType = obj.contentType,
       format = obj.format,
-      sizeKb = obj.size.map(_.inKilobytes),
       sha256 = obj.sha256)
   }
 }

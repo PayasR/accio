@@ -19,26 +19,21 @@
 package fr.cnrs.liris.locapriv.ops
 
 import com.github.nscala_time.time.Imports._
-import fr.cnrs.liris.accio.sdk.{RemoteFile, _}
-import fr.cnrs.liris.locapriv.domain.{Event, Trace}
+import fr.cnrs.liris.lumos.domain.RemoteFile
+import fr.cnrs.liris.accio.sdk._
+import fr.cnrs.liris.locapriv.domain.Event
 
 @Op(
   category = "transform",
-  help = "Split traces, ensuring a maximum duration for each one.",
-  cpus = 4,
-  ram = "2G")
+  help = "Split traces, ensuring a maximum duration for each one.")
 case class DurationSplittingOp(
-  @Arg(help = "Maximum duration of each trace") duration: org.joda.time.Duration,
-  @Arg(help = "Input dataset") data: RemoteFile)
-  extends ScalaOperator[DurationSplittingOut] with SlidingSplitting with SparkleOperator {
+  @Arg(help = "Maximum duration of each trace")
+  duration: Duration,
+  @Arg(help = "Input dataset")
+  data: RemoteFile)
+  extends SlidingSplittingOp {
 
-  override def execute(ctx: OpContext): DurationSplittingOut = {
-    val split = (buffer: Seq[Event], curr: Event) => (buffer.head.time to curr.time).duration >= duration
-    val output = read[Trace](data).flatMap(transform(_, split))
-    DurationSplittingOut(write(output, ctx))
+  override protected def split(buffer: Seq[Event], curr: Event): Boolean = {
+    (buffer.head.time to curr.time).duration >= duration
   }
 }
-
-case class DurationSplittingOut(
-  @Arg(help = "Output dataset")
-  data: RemoteFile)

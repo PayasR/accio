@@ -18,29 +18,24 @@
 
 package fr.cnrs.liris.locapriv.ops
 
-import fr.cnrs.liris.accio.sdk.{RemoteFile, _}
+import fr.cnrs.liris.lumos.domain.RemoteFile
+import fr.cnrs.liris.accio.sdk._
+import fr.cnrs.liris.locapriv.domain.Event
 import fr.cnrs.liris.util.geo.Distance
-import fr.cnrs.liris.locapriv.domain.{Event, Trace}
 
 @Op(
   category = "transform",
   help = "Enforce a minimum distance between two consecutive events in traces.",
-  description = "If the distance is less than a given threshold, records will be discarded until the next point " +
-    "that fulfills the minimum distance requirement.",
-  cpus = 4,
-  ram = "2G")
+  description = "If the distance is less than a given threshold, records will be discarded until " +
+    "the next point that fulfills the minimum distance requirement.")
 case class SpatialSamplingOp(
   @Arg(help = "Minimum distance between two consecutive events")
   distance: Distance,
   @Arg(help = "Input dataset")
   data: RemoteFile)
-  extends ScalaOperator[SpatialSamplingOut] with SlidingSampling with SparkleOperator {
-  
-  override def execute(ctx: OpContext): SpatialSamplingOut = {
-    val sample = (prev: Event, curr: Event) => prev.point.distance(curr.point) >= distance
-    val output = read[Trace](data).map(transform(_, sample))
-    SpatialSamplingOut(write(output, ctx))
+  extends SlidingSamplingOp {
+
+  override protected def sample(prev: Event, curr: Event): Boolean = {
+    prev.point.distance(curr.point) >= distance
   }
 }
-
-case class SpatialSamplingOut(@Arg(help = "Output dataset") data: RemoteFile)

@@ -1,0 +1,42 @@
+# Accio is a platform to launch computer science experiments.
+# Copyright (C) 2016-2018 Vincent Primault <v.primault@ucl.ac.uk>
+#
+# Accio is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Accio is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Accio.  If not, see <http://www.gnu.org/licenses/>.
+
+# This is a development version, to be used with Vagrant only.
+
+[Unit]
+Description=Accio server
+
+[Service]
+ExecStartPre=/bin/mkdir -p /var/lib/accio /var/lib/accio/ops
+ExecStart=/usr/bin/java \
+  -Xmx3G \
+  -server \
+  -agentlib:jdwp=transport=dt_socket,server=y,address=8001,suspend=n \
+  -jar /usr/local/bin/accio-server.jar \
+    -thrift.port=":9991" \
+    -admin.port=":8881" \
+    -log.level=DEBUG \
+    -scheduler=local \
+    -scheduler.force_scheduling \
+    -scheduler.datadir=/var/lib/accio/scheduler \
+    -executor_uri=/var/lib/accio/executor.jar \
+    -discovery.file.path=/var/lib/accio/ops \
+    -discovery.file.frequency=1.minute \
+    -event.server.address=localhost:9990
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

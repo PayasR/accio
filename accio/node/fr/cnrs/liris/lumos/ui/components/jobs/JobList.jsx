@@ -17,17 +17,34 @@
  */
 
 import React from 'react';
-import JobTableContainer from './JobTableContainer';
+import PropTypes from 'prop-types';
+import JobTable from './JobTable';
+import Pager from './Pager';
+import JobSearch from './JobSearch';
 
 class JobList extends React.Component {
   render() {
     return (
       <div>
-        <h2>Campaigns</h2>
-        <JobTableContainer/>
+        <JobSearch value={this.props.filter} onChange={this.props.onFilterChange}/>
+
+        <JobTable jobs={this.props.jobs}/>
+
+        <Pager totalCount={this.props.totalCount}
+               onChange={this.props.onPageChange}
+               page={this.props.page}/>
       </div>
     );
   }
 }
+
+JobTable.propTypes = {
+  jobs: PropTypes.array.isRequired,
+  page: PropTypes.number.isRequired,
+  filter: PropTypes.string.isRequired,
+  totalCount: PropTypes.number.isRequired,
+  onPageChange: PropTypes.func.isRequired,
+  onFilterChange: PropTypes.func.isRequired,
+};
 
 export default JobList;

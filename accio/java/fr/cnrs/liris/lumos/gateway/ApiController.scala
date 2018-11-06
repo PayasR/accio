@@ -20,8 +20,10 @@ package fr.cnrs.liris.lumos.gateway
 
 import com.google.inject.{Inject, Singleton}
 import com.twitter.finatra.http.Controller
+import com.twitter.finatra.http.exceptions.BadRequestException
 import com.twitter.finatra.request.{QueryParam, RouteParam}
 import com.twitter.finatra.validation.{Max, Min}
+import com.twitter.util.Future
 import fr.cnrs.liris.lumos.domain.thrift
 import fr.cnrs.liris.lumos.server._
 
@@ -30,9 +32,7 @@ final class ApiController @Inject()(client: LumosService.MethodPerEndpoint) exte
   get("/api/v1/jobs") { httpReq: ListJobsHttpRequest =>
     val maybeState = httpReq.state.map(thrift.ExecState.valueOf)
     if (maybeState.exists(_.isEmpty)) {
-      response.badRequest(ServerException(
-        code = ErrorCode.InvalidArgument,
-        errors = Some(Seq(s"Invalid state: ${httpReq.state.get}"))))
+      Future.exception(BadRequestException(s"Invalid state: ${httpReq.state.get}"))
     } else {
       val offset = (httpReq.page - 1) * httpReq.perPage
       val req = ListJobsRequest(
@@ -47,13 +47,12 @@ final class ApiController @Inject()(client: LumosService.MethodPerEndpoint) exte
     }
   }
 
-  get("/api/v1/job/:name") { httpReq: GetJobHttpRequest =>
+  get("/api/v1/jobs/:name") { httpReq: GetJobHttpRequest =>
     client
       .getJob(GetJobRequest(httpReq.name))
       .map { resp =>
         if (httpReq.download) {
-          response
-            .ok(resp.job)
+          response.ok(resp.job)
             .header("Content-Disposition", s"attachment; filename=job-${resp.job.name}.json")
         } else {
           resp.job

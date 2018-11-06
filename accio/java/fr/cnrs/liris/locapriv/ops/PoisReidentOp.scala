@@ -18,77 +18,83 @@
 
 package fr.cnrs.liris.locapriv.ops
 
-import fr.cnrs.liris.accio.sdk.{RemoteFile, _}
-import fr.cnrs.liris.locapriv.domain.PoiSet
+import fr.cnrs.liris.lumos.domain.RemoteFile
+import fr.cnrs.liris.accio.sdk._
+import fr.cnrs.liris.locapriv.domain.{Poi, PoiSet}
+import fr.cnrs.liris.sparkle.DataFrame
 
 /**
- * Implementation of a re-identification attack using the points of interest as a discriminating information. The POIs
- * are used to model the behaviour of training users, and then extracted from the tracks of test users and compared to
- * those from the training users. The comparison here is done between set of POIs, and only the spatial information.
+ * Implementation of a re-identification attack using the points of interest as a discriminating
+ * information. The POIs are used to model the behavior of training users, and then extracted from
+ * the tracks of test users and compared to those from the training users. The comparison here is
+ * done between set of POIs, and only the spatial information.
  *
  * Vincent Primault, Sonia Ben Mokhtar, Cédric Lauradoux and Lionel Brunie. Differentially Private
  * Location Privacy in Practice. In MOST'14.
  */
 @Op(
   category = "metric",
-  help = "Re-identification attack using POIs a the discriminating information.",
-  cpus = 6,
-  ram = "3G")
+  help = "Re-identification attack using POIs a the discriminating information.")
 case class PoisReidentOp(
   @Arg(help = "Train dataset (POIs)")
   train: RemoteFile,
   @Arg(help = "Test dataset (POIs)")
   test: RemoteFile)
-  extends ScalaOperator[ReidentificationOut] with SparkleOperator {
+  extends ScalaOperator[PoisReidentOp.Out] with SparkleOperator {
 
-  override def execute(ctx: OpContext): ReidentificationOut = {
-    val trainPois = read[PoiSet](train).toArray
-    val testPois = read[PoiSet](test).toArray
-
-    val distances = computeDistances(trainPois, testPois)
-    val matches = computeMatches(distances)
-    val successRate = computeSuccessRate(trainPois, matches)
-
-    //distances.map { case (k, v) => k -> v.toMap },
-    ReidentificationOut(matches, successRate)
+  override def execute(ctx: OpContext): PoisReidentOp.Out = {
+    val trainPois = readPois(train)
+    val testPois = readPois(test)
+    val metrics = computeMetrics(trainPois, testPois)
+    val successRate = computeSuccessRate(trainPois, metrics)
+    PoisReidentOp.Out(write(metrics, 0, ctx), successRate)
   }
 
-  private def computeDistances(trainPois: Array[PoiSet], testPois: Array[PoiSet]) = {
-    val costs = collection.mutable.Map[String, Map[String, Double]]()
-    testPois.foreach { pois =>
-      val distances = if (pois.nonEmpty) {
-        //Compute the distance between the set of POIs from the test user and the models (from the training users).
-        //This will give us an association between a training user and a distance. We only keep finite distances.
-        trainPois
-          .map(model => model.user -> model.distance(pois).meters)
-          .filter { case (_, d) => !d.isInfinite }
-          .toMap
-      } else {
-        Map[String, Double]()
+  private def readPois(file: RemoteFile): Iterable[PoiSet] = {
+    val pois = read[Poi](file).collect()
+    pois.groupBy(_.user).map { case (id, elements) => PoiSet(id, elements) }
+  }
+
+  private def computeMetrics(trainPois: Iterable[PoiSet], testPois: Iterable[PoiSet]): DataFrame[PoisReidentOp.Value] = {
+    if (testPois.isEmpty) {
+      env.emptyDataFrame
+    } else {
+      val metrics = testPois.map { pois =>
+        val distances = if (pois.nonEmpty) {
+          // Compute the distance between the set of POIs from the test user and the models (from the training users).
+          // This will give us an association between a training user and a distance. We only keep finite distances.
+          trainPois
+            .map(model => model.user -> model.distance(pois).meters)
+            .filter { case (_, d) => !d.isInfinite }
+            .toSeq
+        } else {
+          Seq.empty
+        }
+        distances.sortBy(_._2).headOption match {
+          case None => PoisReidentOp.Value("-", pois.user, Double.NaN)
+          case Some((trainUser, d)) => PoisReidentOp.Value(trainUser, pois.user, d)
+        }
       }
-      costs.synchronized {
-        costs += pois.user -> distances
-      }
+      env.parallelize(metrics)
     }
-    costs.toSeq.map { case (user, model) =>
-      user -> model.toSeq.sortBy(_._2).map { case (u: String, d: Double) => (u, d) }
-    }.toMap
   }
 
-  private def computeMatches(distances: Map[String, Seq[(String, Double)]]) = {
-    distances.map { case (testUser, res) => testUser -> res.headOption.map(_._1).getOrElse("-") }
-  }
-
-  private def computeSuccessRate(trainPois: Array[PoiSet], matches: Map[String, String]) = {
+  private def computeSuccessRate(trainPois: Iterable[PoiSet], matches: DataFrame[PoisReidentOp.Value]) = {
     val trainUsers = trainPois.map(_.user)
-    matches.map { case (testUser, trainUser) => if (testUser == trainUser) 1 else 0 }.sum / trainUsers.length.toDouble
+    matches.map(row => if (row.correct) 1 else 0).sum / trainUsers.size.toDouble
   }
 }
 
-case class ReidentificationOut(
-  //@Arg(help = "Distances between users from test and train datasets")
-  //distances: Map[String, Map[String, Double]],
-  @Arg(help = "Matches between users from test and train datasets")
-  matches: Map[String, String],
-  @Arg(help = "Correct re-identifications rate")
-  rate: Double)
+object PoisReidentOp {
+
+  case class Value(trainUser: String, testUser: String, distance: Double) {
+    def correct: Boolean = trainUser == testUser
+  }
+
+  case class Out(
+    @Arg(help = "Metrics dataset")
+    metrics: RemoteFile,
+    @Arg(help = "Correct re-identifications rate")
+    rate: Double)
+
+}

@@ -18,28 +18,19 @@
 
 package fr.cnrs.liris.locapriv.ops
 
+import fr.cnrs.liris.lumos.domain.RemoteFile
 import fr.cnrs.liris.accio.sdk._
-import fr.cnrs.liris.locapriv.domain.{Event, Trace}
+import fr.cnrs.liris.locapriv.domain.Event
 
 @Op(
   category = "transform",
-  help = "Split traces, ensuring a maximum size for each one.",
-  cpus = 4,
-  ram = "2G")
+  help = "Split traces, ensuring a maximum size for each one.")
 case class SizeSplittingOp(
   @Arg(help = "Maximum number of events allowed in each trace")
   size: Int,
   @Arg(help = "Input dataset")
   data: RemoteFile)
-  extends ScalaOperator[SizeSplittingOut] with SlidingSplitting with SparkleOperator {
+  extends SlidingSplittingOp {
 
-  override def execute(ctx: OpContext): SizeSplittingOut = {
-    val split = (buffer: Seq[Event], _: Event) => buffer.size >= size
-    val output = read[Trace](data).flatMap(transform(_, split))
-    SizeSplittingOut(write(output, ctx))
-  }
+  override protected def split(buffer: Seq[Event], curr: Event): Boolean = buffer.size >= size
 }
-
-case class SizeSplittingOut(
-  @Arg(help = "Output dataset")
-  data: RemoteFile)

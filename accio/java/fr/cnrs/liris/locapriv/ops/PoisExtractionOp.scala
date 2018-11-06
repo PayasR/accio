@@ -19,15 +19,14 @@
 package fr.cnrs.liris.locapriv.ops
 
 import com.github.nscala_time.time.Imports._
+import fr.cnrs.liris.lumos.domain.RemoteFile
 import fr.cnrs.liris.accio.sdk._
 import fr.cnrs.liris.locapriv.domain._
 import fr.cnrs.liris.util.geo.Distance
 
 @Op(
   category = "transform",
-  help = "Compute POIs retrieval difference between two datasets of traces",
-  cpus = 4,
-  ram = "3G")
+  help = "Compute POIs retrieval difference between two datasets of traces.")
 case class PoisExtractionOp(
   @Arg(help = "Clustering maximum diameter")
   diameter: Distance,
@@ -37,27 +36,15 @@ case class PoisExtractionOp(
   minPoints: Int = 0,
   @Arg(help = "Input traces dataset")
   data: RemoteFile)
-  extends ScalaOperator[PoisExtractionOut] with SparkleOperator {
+  extends TransformOp[Poi] {
 
-  override def execute(ctx: OpContext): PoisExtractionOut = {
-    val input = read[Trace](data)
-    val output = if (minPoints == 0) {
-      val clusterer = new DTClusterer(duration, diameter)
-      input.map { trace =>
-        val pois = clusterer.cluster(trace).map(cluster => Poi(cluster.events))
-        PoiSet(trace.id, pois)
-      }
-    } else {
-      val clusterer = new PoisClusterer(duration, diameter, minPoints)
-      input.map { trace =>
-        val pois = clusterer.cluster(trace.events)
-        PoiSet(trace.id, pois)
-      }
-    }
-    PoisExtractionOut(write(output, ctx))
+  private[this] val clusterer = if (minPoints == 0) {
+    new DTClusterer(duration, diameter)
+  } else {
+    new RepeatedPoisClusterer(duration, diameter, minPoints)
+  }
+
+  override protected def transform(key: String, trace: Iterable[Event]): Iterable[Poi] = {
+    clusterer.clusterPois(trace.toSeq)
   }
 }
-
-case class PoisExtractionOut(
-  @Arg(help = "Output POIs dataset")
-  data: RemoteFile)

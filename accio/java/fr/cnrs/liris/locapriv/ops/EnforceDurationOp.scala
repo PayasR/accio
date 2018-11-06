@@ -19,42 +19,38 @@
 package fr.cnrs.liris.locapriv.ops
 
 import com.github.nscala_time.time.Imports._
+import fr.cnrs.liris.lumos.domain.RemoteFile
 import fr.cnrs.liris.accio.sdk._
-import fr.cnrs.liris.locapriv.domain.Trace
+import fr.cnrs.liris.locapriv.domain.Event
 
 @Op(
   category = "transform",
   help = "Enforce a given duration on each trace.",
-  description = "Longer traces will be truncated, shorter traces will be discarded.",
-  cpus = 4,
-  ram = "2G")
+  description = "Longer traces will be truncated, shorter traces will be discarded.")
 case class EnforceDurationOp(
   @Arg(help = "Minimum duration of a trace")
   minDuration: Option[Duration],
   @Arg(help = "Maximum duration of a trace")
   maxDuration: Option[Duration],
   @Arg(help = "Input dataset") data: RemoteFile)
-  extends ScalaOperator[EnforceDurationOut] with SparkleOperator {
+  extends TransformOp[Event] {
 
-  override def execute(ctx: OpContext): EnforceDurationOut = {
-    val output = write(read[Trace](data).flatMap(transform), ctx)
-    EnforceDurationOut(output)
-  }
-
-  private def transform(trace: Trace): Seq[Trace] = {
-    var res = trace
-    maxDuration.foreach { duration =>
-      val startAt = res.events.head.time
-      val endAt = startAt + duration
-      res = res.replace(_.takeWhile(r => r.time <= endAt))
-    }
-    minDuration match {
-      case None => Seq(res)
-      case Some(duration) => if (res.duration < duration) Seq.empty else Seq(res)
+  override protected def transform(key: String, trace: Iterable[Event]): Iterable[Event] = {
+    if (trace.isEmpty) {
+      trace
+    } else {
+      var result = trace
+      maxDuration.foreach { duration =>
+        val startAt = result.head.time
+        val endAt = startAt + duration
+        result = result.takeWhile(r => r.time <= endAt)
+      }
+      minDuration match {
+        case None => result
+        case Some(threshold) =>
+          val duration = (trace.head.time to trace.last.time).duration
+          if (duration < threshold) Seq.empty else result
+      }
     }
   }
 }
-
-case class EnforceDurationOut(
-  @Arg(help = "Output dataset")
-  data: RemoteFile)

@@ -28,38 +28,44 @@ function upstart_update {
   sudo systemctl start $1 || true
 }
 
-function build_client {
-  bazel build accio/java/fr/cnrs/liris/accio/tools/cli:binary
-  sudo cp bazel-genfiles/accio/java/fr/cnrs/liris/accio/tools/cli/cli_binary /usr/local/bin/accio
+function build_cli {
+  bazel build accio/java/fr/cnrs/liris/accio/cli:binary
+  sudo cp bazel-genfiles/accio/java/fr/cnrs/liris/accio/cli/cli_binary /usr/local/bin/accio
 }
 
-function build_agent {
-  bazel build accio/java/fr/cnrs/liris/accio/agent:agent_deploy.jar
-  sudo cp bazel-bin/accio/java/fr/cnrs/liris/accio/agent/agent_deploy.jar /usr/local/bin/accio-agent.jar
-  upstart_update accio-agent
+function build_server {
+  if [ ! -f /var/lib/accio/executor.jar ]; then
+    build_executor
+  fi
+  if [ ! -f /var/lib/accio/ops/locapriv.jar ]; then
+    build_ops
+  fi
+  bazel build accio/java/fr/cnrs/liris/accio/server:server_deploy.jar
+  sudo cp bazel-bin/accio/java/fr/cnrs/liris/accio/server/server_deploy.jar /usr/local/bin/accio-server.jar
+  upstart_update accio-server
 }
 
 function build_executor {
   bazel build accio/java/fr/cnrs/liris/accio/executor:executor_deploy.jar
-  sudo cp bazel-bin/accio/java/fr/cnrs/liris/accio/executor/executor_deploy.jar /usr/local/bin/accio-executor.jar
+  sudo mkdir -p /var/lib/accio
+  sudo cp bazel-bin/accio/java/fr/cnrs/liris/accio/executor/executor_deploy.jar /var/lib/accio/executor.jar
 }
 
-function build_gateway {
-  bazel run @yarn//:yarn
-  bazel build accio/java/fr/cnrs/liris/accio/tools/gateway:gateway_deploy.jar
-  sudo cp bazel-bin/accio/java/fr/cnrs/liris/accio/tools/gateway/gateway_deploy.jar /usr/local/bin/accio-gateway.jar
-  upstart_update accio-gateway
+function build_ops {
+  bazel build accio/java/fr/cnrs/liris/locapriv/ops:ops_deploy.jar
+  sudo mkdir -p /var/lib/accio/ops
+  sudo cp bazel-bin/accio/java/fr/cnrs/liris/locapriv/ops/ops_deploy.jar /var/lib/accio/ops/locapriv.jar
 }
 
 function build_all {
-  build_client
-  build_agent
+  build_cli
+  build_ops
   build_executor
-  build_gateway
+  build_server
 }
 
 function print_components {
-  echo 'Please select from: client, executor, agent, gateway or all.'
+  echo 'Please select from: cli, executor, server, ops, or all.'
 }
 
 if [ "$#" -eq 0 ]; then

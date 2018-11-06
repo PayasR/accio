@@ -14,27 +14,25 @@
 # You should have received a copy of the GNU General Public License
 # along with Accio.  If not, see <http://www.gnu.org/licenses/>.
 
-scala_library(
+scala_binary(
   name = "ops",
   srcs = glob(["*.scala"]),
   deps = [
     "//accio/java/fr/cnrs/liris/accio/sdk",
     "//accio/java/fr/cnrs/liris/accio/sdk:annotations",
-    "//accio/java/fr/cnrs/liris/locapriv/sparkle",
+    "//accio/java/fr/cnrs/liris/sparkle",
+    "//accio/java/fr/cnrs/liris/sparkle/format",
     "//accio/java/fr/cnrs/liris/locapriv/domain",
-    "//accio/java/fr/cnrs/liris/locapriv/io",
     "//accio/java/fr/cnrs/liris/util/geo",
     "//accio/java/fr/cnrs/liris/util",
     "//accio/java/fr/cnrs/liris/util/random",
+    "//accio/java/fr/cnrs/liris/util/collect",
     "//accio/java/com/google/common/geometry",
     "//3rdparty/jvm/com/github/nscala_time",
     "//3rdparty/jvm/com/google/guava",
     "//3rdparty/jvm/org/scalanlp:breeze",
     "//3rdparty/jvm/com/twitter:util_jvm",
     "//3rdparty/jvm/com/twitter:util_slf4j_api",
-  ],
-  exports = [
-    "//accio/java/fr/cnrs/liris/accio/sdk",
   ],
   resources = [
     "linux_w4m_LST",
@@ -44,4 +42,5 @@ scala_library(
   ],
   resource_strip_prefix = "accio/java",
   visibility = ["//visibility:public"],
+  main_class = "fr.cnrs.liris.locapriv.ops.OpsLibrary"
 )

@@ -1,0 +1,6 @@
+[
+  {
+    "name": "devcluster",
+    "server": "0.0.0.0:9991"
+  }
+]

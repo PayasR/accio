@@ -18,35 +18,26 @@
 
 package fr.cnrs.liris.locapriv.ops
 
-import fr.cnrs.liris.accio.sdk.{RemoteFile, _}
-import fr.cnrs.liris.locapriv.domain.{Laplace, Trace}
-
-import scala.util.Random
+import fr.cnrs.liris.lumos.domain.RemoteFile
+import fr.cnrs.liris.accio.sdk._
+import fr.cnrs.liris.locapriv.domain.{Event, Laplace}
 
 @Op(
   category = "lppm",
   help = "Enforce geo-indistinguishability guarantees on traces.",
   description = "Generate locations satisfying geo-indistinguishability properties. The method used here is the one " +
     "presented by the authors of the paper and consists in adding noise following a double-exponential distribution.",
-  unstable = true,
-  cpus = 4,
-  ram = "2G")
+  unstable = true)
 case class GeoIndistinguishabilityOp(
   @Arg(help = "Privacy budget")
   epsilon: Double = 0.001,
   @Arg(help = "Input dataset")
   data: RemoteFile)
-  extends ScalaOperator[GeoIndistinguishabilityOut] with SparkleOperator {
+  extends TransformOp[Event] {
+
   require(epsilon > 0, s"Epsilon must be strictly positive (got $epsilon)")
 
-  override def execute(ctx: OpContext): GeoIndistinguishabilityOut = {
-    val input = read[Trace](data)
-    val rnd = new Random(ctx.seed)
-    val seeds = input.keys.map(key => key -> rnd.nextLong()).toMap
-    val output = input.map(trace => new Laplace(epsilon, seeds(trace.id)).transform(trace))
-    GeoIndistinguishabilityOut(write(output, ctx))
+  override def transform(key: String, trace: Iterable[Event]): Iterable[Event] = {
+    Laplace.transform(trace, epsilon, seeds(key))
   }
 }
-
-case class GeoIndistinguishabilityOut(
-  @Arg(help = "Output dataset") data: RemoteFile)

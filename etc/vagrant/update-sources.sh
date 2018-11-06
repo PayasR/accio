@@ -27,5 +27,5 @@ rsync -urzvhl /vagrant/ /home/vagrant/accio \
     --delete \
 
 # Install/update the upstart configurations.
-sudo cp /vagrant/etc/vagrant/systemd/*.service /lib/systemd/system
+sudo cp /vagrant/etc/vagrant/systemd/*.service /etc/systemd/system
 sudo systemctl daemon-reload
